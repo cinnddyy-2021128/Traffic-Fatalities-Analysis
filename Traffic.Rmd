@@ -1,0 +1,560 @@
+---
+title: "Traffic Fatality Analysis"
+author: "Saisha Jain, Otto Miller, Cindy Wang"
+date: '`r Sys.Date()`'
+output: pdf_document
+header-includes:
+- \usepackage{diagbox}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
+library(MASS)
+library(plyr)
+library(car)
+library(olsrr)
+library(rcompanion)
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(lmtest)
+library(formatR)
+library(agricolae)
+```
+
+```{r}
+
+```
+
+
+```{r include=FALSE}
+fatals <- read.csv("Fatalities.csv")
+```
+
+# Section 1: Introduction
+
+\textbf{Description: }In this paper we will be analyzing a dataset containing traffic fatality data from 1982 to 1988 in all US states except for Alaska and Hawaii. Our data set includes 336 cross-sectional observations of 4 categorical and 30 numerical variables. Each entry contains traffic fatality information from a particular year in a particular state. We hope our analysis will help to describe the population of all US traffic fatalities. We chose this dataset because it represents a consistent and severe problem for everybody including ourselves. We will use RMarkdown in RStudio(2021.09.0) to answer three research questions with data visualization and appropriate statistical methods at a 5% level of significance. In the online description for our dataset it states that: "Traffic fatality data is from the US Department of Transportation Fatal Accident Reporting System. Total vehicle miles traveled annually by state was obtained from the Department of Transportation. Personal income was obtained from the US Bureau of Economic Analysis, and the unemployment rate was obtained from the US Bureau of Labor Statistics". The download link for our data set is **https://vincentarelbundock.github.io/Rdatasets/csv/AER/Fatalities.csv**.
+
+
+\textbf{Missing Values: }Only one of the 336 observations in our data contains missing values so we omitted the row in which they occur for the questions that the missing values would affect (2 and 3).
+
+\textbf{Importance: }According to Christopher J. Ruhm in their paper "Alcohol policies and highway vehicle fatalities", traffic fatalities are the leading cause of death for people under the age of 40(1). Understanding the factors correlated with traffic fatalities may allow the public and policy makers to make changes that reduce the amount of death and suffering they cause.
+
+\textbf{Research Questions}
+ 
+\textbf{1:} Is there an association between US regions and number of traffic fatalities?  
+
+The different regions of the US can often have very different cultural and political attitudes, by understanding which parts of the country suffer more traffic fatalities we enable future research to investigate those differences in the hopes of finding treatments for the problem.  
+
+We will make use of the state and net fatality variables in our data (state and fatal respectively) in an ANOVA model to answer this question. We decided to split the country into 5 regions: West, Midwest, Northeast, Southwest and Southeast (The way the states have been split into regions is described below). We then will verify the assumptions of the ANOVA model, making any transformations necessary, before generating the model with US region as our independent variable and total regional fatalities as our dependent.  
+
+West: WA, MT, OR, ID, WY, NV, UT, CO, CA
+
+Midwest: ND, MN, SD, WI, NE, IA, MI, KS, MO, IL, IN, OH
+
+Northeast: PA, NY, VT, ME, NH, MA, RI, CT, NJ, DE, MD
+
+Southwest: AZ, NM, TX, OK
+
+Southeast: AK, LA, MS, TN, AL, KY, GA, WV, VA, NC, SC, FL
+
+
+
+\textbf{2:} Which factors significantly predict the number of traffic fatalities?
+
+This question is taking a more specific look at what variables affect fatality rates, while ignoring explicit geographical factors. Our starting model includes most of the variables in the dataset that are not subsets of fatalities themselves or national statistics, specifically our unsimplified model will contain: year, spirits, unemp, income, emppop, beertax, baptist, mormon, drinkage, dry, youngdrivers, miles, breath, jail, service, pop, and milestot. We will build a multiple linear regression model with these variables as independent and fatalities as dependent. We will then simplify the model by removing multicollinearity and variables with lower significance. We will then compare all of our models and pick the best one that allows our assumptions to hold. 
+
+
+\textbf{3:} Is there an association between mandatory jail time and mandatory community service by state?
+
+People may behave differently based on whether there is community service or jail time associated with reckless driving practices so understanding the relationship between their existences in different states in different years might shed more light on the problem. Especially when combined with our previous question which looked at their affects on traffic fatalities directly. We will construct a frequency table between the two variables and then if it fits our assumptions we will run a chi-square test on the table, and a further difference in proportion test if it is significant.
+
+
+
+# Section 2: EDA
+
+\begin{center}
+\textbf{Variable Table and Data Type}
+\end{center}
+
+\begin{center}
+\begin{tabular}{||p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}||} \hline
+Variable & \textbf{state} & \textbf{year} & \textbf{fatal} & \textbf{spirits} & \textbf{unemp} \\ \hline
+Type & Categorical & Categorical & Numeric & Numeric & Numeric \\ \hline
+Subtype & Nominal & Ordinal & Discrete & Continuous & Continuous \\ \hline
+Units & -- & -- & -- & -- & --  \\ \hline
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{||p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}||} \hline
+Variable & \textbf{income} & \textbf{emppop} & \textbf{beertax} & \textbf{baptist} & \textbf{mormon} \\ \hline
+Type & Numeric & Numeric & Numeric & Numeric & Numeric \\ \hline
+Subtype & Continuous & Continuous & Continuous & Continuous & Continuous \\ \hline
+Units & Dollars & -- & Dollars & -- & --  \\ \hline
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{||p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}||} \hline
+Variable & \textbf{drinkage} & \textbf{dry} & \textbf{youngdrivers} & \textbf{miles} & \textbf{breath} \\ \hline
+Type & Numeric & Numeric & Numeric & Numeric & Categorical \\ \hline
+Subtype & Continuous & Continuous & Continuous & Continuous & Nominal \\ \hline
+Units & -- & -- & -- & Miles & --  \\ \hline
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{||p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}||} \hline
+Variable & \textbf{jail} & \textbf{service} & \textbf{pop} & \textbf{milestot} & \textbf{unempus} \\ \hline
+Type & Categorical & Categorical & Numeric & Numeric & Numeric \\ \hline
+Subtype & Nominal & Nominal & Discrete & Discrete & Continuous \\ \hline
+Units & -- & -- & -- & Miles(mill) & --  \\ \hline
+\end{tabular}
+\end{center}
+
+
+\begin{center}
+\textbf{Graphs}
+\end{center}
+
+```{r barplot region against total fatalities}
+state_group <- c(5, 5, 4, 1, 1, 3, 3, 5, 5, 2, 1, 2, 2, 2, 5, 5, 3, 3, 3, 2, 2, 2, 5, 
+          1, 5, 2, 2, 3, 3, 4, 1, 3, 2, 4, 1, 3, 3, 5, 2, 5, 4, 1, 5, 3, 1, 2, 5, 1)
+
+tb <- aggregate(fatals$fatal, list(fatals$state), FUN=sum)
+rownames(tb) <- paste(tb$Group.1, "_totals")
+state_fatals <- tb[ , 2]
+
+total <- tibble(
+  region = c("West", "Midwest", "Northeast", "Southwest", "Southeast"),
+  fatalities = aggregate(state_fatals, list(state_group), FUN = sum)[ ,2]
+)
+
+total$region <- factor(total$region, 
+                levels = c("West", "Midwest", "Northeast", "Southwest", "Southeast"))
+
+p1 <- ggplot(data = total, aes(x=region, y=fatalities, fill = region)) +
+  geom_bar(stat = "identity") + 
+  labs(x = "US Region", y = "Number of Traffic Fatalities") +
+  ggtitle("Traffic Fatalities by US Region") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+p1 + scale_fill_manual(values = c("#3d85c6","#4eaa9b",
+                                    "#6a53a7","#d21414","#f8c835"))
+```
+
+\textbf{Comments: }From the bar plot of traffic fatalities by US regions, we can see that the southeast region has the most traffic fatalities and the southwest region has the least fatalities. We hypothesize that one of the biggest reason for this distribution is that the southeast region is more densely populated and includes more states than the southwest region which is less populated. For regions West, Midwest and Northeast, all these regions have states that are more populated and have have states that are not as populated and that they include roughly the same number of states so their total number of traffic fatalities are similar to each other.
+
+```{r boxplot region against total fatalities, origianl and log transformed}
+total <- tibble(
+  region = as.factor(state_group),
+  fatalities = state_fatals
+)
+
+total_log <- tibble(
+  region = as.factor(state_group),
+  fatalities_log = log(state_fatals)
+)
+
+p2 <- ggplot(total, aes(x = region, y = fatalities, fill = region)) +
+  geom_boxplot() +
+  labs(x = "US Region", y ="Number of Traffic Fatalities") +
+  scale_x_discrete(labels = c("West", "Midwest", "Northeast", "Southwest", "Southeast")) +
+  theme_minimal()
+
+p3 <- ggplot(total_log, aes(x = region, y = fatalities_log, fill = region)) +
+  geom_boxplot() +
+  labs(x = "US Region", y ="Log of Number of Traffic Fatalities") +
+  scale_x_discrete(labels = c("West", "Midwest", "Northeast", "Southwest", "Southeast")) +
+  theme_minimal()
+
+p2 + 
+  theme(legend.position="none") + 
+  coord_flip() + 
+  scale_fill_manual(values = c("#3d85c6","#4eaa9b", "#6a53a7","#d21414","#f8c835"))  +
+p3 + 
+  theme(legend.position = "none") + 
+  coord_flip() + 
+  scale_fill_manual(values = c("#3d85c6","#4eaa9b", "#6a53a7","#d21414","#f8c835")) + 
+  plot_annotation(title = "Traffic Fatalities by US Region")
+```
+
+\textbf{Comments: }We constructed box plots for each US region and their number of traffic fatalities and also the logged number of traffic fatalities. From the untransformed plot we see that there are 4 outliers and they are mostly not normally distributed. The West region appears to have the lowest median and Southeast has the highest median, they all look sightly right skewed and have less spread compared to after transforming the data. In the logged transformed plot, we can see that there are three outliers but the individual plots look more normally distributed compared to untransformed.
+
+```{r 5 num summary for fatal}
+fivenum(fatals$fatal)
+mean(fatals$fatal)
+sd(fatals$fatal)
+```
+\begin{center}
+\textbf{5 num summary for the number of fatalities in each state for each year}
+\end{center}
+
+\begin{center}
+\begin{tabular}{||p{1.5cm}|p{2.3cm}|p{1.5cm}|p{1.5cm}|p{1.5cm}|p{2.3cm}|p{1.5cm}||} \hline
+\textbf{Min} & \textbf{1st Quartile} & \textbf{Med} & \textbf{Mean} & \textbf{SD} & \textbf{3rd Quartile} & \textbf{Max} \\ \hline
+79.0 & 292.5 & 701.0 & 928.6637 & 934.0515 & 1066.0 & 5504.0 \\ \hline
+\end{tabular}
+\end{center}
+
+```{r Scatterplot for mlr}
+p4 <- ggplot(fatals, aes(x = beertax, y = log(fatal))) +
+  geom_point(color = "#b88f11", size = 0.5) +
+  labs(x = "Tax on Case of Beer", y ="Log(Fatalities)") +
+  theme_minimal()+ 
+  theme(axis.title = element_text(size = 9)) 
+
+p5 <- ggplot(fatals, aes(x = spirits, y = log(fatal))) +
+  geom_point(color = "#79420a", size = 0.5) +
+  labs(x = "Spirits Consumption", y ="Log(Fatalities)") +
+  theme_minimal()+ 
+  theme(axis.title = element_text(size = 9)) 
+
+p6 <- ggplot(fatals, aes(x = baptist, y = log(fatal))) +
+  geom_point(color = "#ac0e0e", size = 0.5) +
+  labs(x = "Percent of Southern Baptist", y ="Log(Fatalities)") +
+  theme_minimal()+ 
+  theme(axis.title = element_text(size = 9)) 
+
+p7 <- ggplot(fatals, aes(x = income, y = log(fatal))) +
+  geom_point(color = "#2e5919", size = 0.5) +
+  labs(x = "Income (dollars)", y ="Log(Fatalities)") +
+  theme_minimal()+ 
+  theme(axis.title = element_text(size = 9)) 
+
+p8 <- ggplot(fatals, aes(x = unemp, y = log(fatal))) +
+  geom_point(color = "#5882a8", size = 0.5) +
+  labs(x = "Unemployment Rate", y ="Log(Fatalities)") +
+  theme_minimal()+ 
+  theme(axis.title = element_text(size = 9)) 
+
+p9 <- ggplot(fatals, aes(x = pop/1000000, y = log(fatal))) +
+  geom_point(color = "#3b3838", size = 0.5) +
+  labs(x = "Population(Millions)", y ="Log(Fatalities)") +
+  theme_minimal()+ 
+  theme(axis.title = element_text(size = 9)) 
+
+p4 + p5 + p6 + p7 + p8 + p9 + 
+  plot_annotation(title = 
+'Log of fatalities against beertax, spirits, baptist, income and umemployment', 
+  theme = theme(plot.title = element_text(size = 12)))
+```
+
+\textbf{Comments: } From the beer tax scatter plot we can see that there doesn't appear to be any linearity and there is a very weak positive correlation between taxes and number of fatalities. In the spirits consumption plot, there also doesn't appear to be any linearity or correlation, there are some outliers where consumption is around 4 and 5 where the number of fatalities is small. The scatter plot for percentage of baptist shows a very weak positive correlation but no linearity between the two variables. Both the scatter plot for income and unemployment rate shows no linearity and both has an extremely weak positive correlation. The population plot shows a postive correlation but doesn't show linearity.
+
+```{r barplot mlr cate var}
+p10 <- ggplot(data = fatals, aes(x = jail, y = fatal, fill = jail)) + 
+    geom_col() +
+    labs(x = "Mandatory Jail Sentence", y ="Number of Fatalities") + 
+    theme_minimal()
+
+p11 <- ggplot(data = fatals, aes(x = service, y = fatal, fill = service)) + 
+    geom_col() +
+    labs(x = "Mandatory community service", y ="Number of Fatalities") +
+    theme_minimal()
+
+p10 + p11 + plot_annotation(title =
+'Number of Fatalities with Mandatory Jail Sentence or Community Service', 
+                            subtitle =
+"State's minimum sentencing requirements for an initial drunk driving conviction", 
+                            theme = theme(plot.title = element_text(size = 12)))
+```
+
+\textbf{Comments: }From the two bar plots we can see that when states have no mandatory jail sentence or mandatory community service for first time drunk driving convictions, the number of fatalities is far greater than when states have mandatory jail sentences or community services. 
+
+
+\begin{center}
+\textbf{Table for mandatory jail or community service for each state in each year}
+\end{center}
+
+\begin{center}
+\begin{tabular}{||c|c|c||} \hline
+\diagbox[width=7em]{\textbf{jail}}{\textbf{service}} & no & yes \\ \hline
+no & 227 & 14 \\ \hline
+yes & 46 & 48 \\ \hline
+\end{tabular}
+\end{center}
+
+# Section 3: Statistical Results
+
+### Question 1
+
+\textbf{ANOVA ASSUMPTIONS: }
+
+ANOVA requires a single categorical independent and a single numerical dependent variable, our independent categorical variable corresponds to the 5 US regions defined above, and our numerical dependent variable is the number of traffic fatalities. Our dependent variable is at an interval level and independent variable is categorical with 5 groups that are independent of each other, meaning the number of fatalities in each region does not affect the number of fatalities in another region. Each US region only maps to one value of our dependent variable. \textbf{EDITS: ANOVA also requires the dependent variable to be normally distributed for each category of the independent variable, Looking at the box plot above for "Traffic Fatalities by US Region", the non transformed data looked a bit skewed so we performed a log transformation. After transforming the data looks more normal within each region group, so we are going to assume normality and use the logged values for the anova test.} According to the Levene's test we get a p-value of 0.1545 which is greater than 0.05 so it's safe to assume that the variances for each group of US regions is equal. From the box plot above, we can see that there are 3 outliers, so we removed the outliers from the data set.
+
+$H_o:$ There is no statistically significant difference in mean traffic fatalities with respect to the five US region groups
+
+$H_A:$ There is a statistically significant difference in mean traffic fatalities with respect to the five US region groups
+```{r q1-1}
+# new logged data we will be using
+state_fatals_log = log(state_fatals) 
+
+# test for equal variance
+leveneTest(state_fatals_log ~ as.factor(state_group)) 
+
+# 1st anova test on complete data
+AOV_model <- aov(state_fatals_log ~ as.factor(state_group))
+summary(AOV_model)
+
+# highest three values are outliers and their indexes in the original data is 4,8,41
+sort(state_fatals_log) 
+
+new_log <- state_fatals_log[-c(4, 8, 41)]
+new_state <- state_group[-c(4, 8, 41)]
+
+total_log <- tibble(
+  region = as.factor(new_state),
+  fatalities_log = new_log
+)
+outliercheck <- ggplot(total_log, aes(x = region, y = fatalities_log, fill = region)) +
+  geom_boxplot() +
+  labs(x = "US Region", 
+       y ="Log(Number of Traffic Fatalities)", 
+       title = "Traffic Fatalities by US Region") +
+  scale_x_discrete(labels = c("West", "Midwest", "Northeast", "Southwest", "Southeast")) +
+  theme_minimal()
+outliercheck + theme(legend.position = "none")
+
+# from the box plot we removed another outlier(lowest value) in the southeast region
+a <- data.frame(new_log, new_state)
+a1 <- a %>% filter(new_state == 5)
+sort(a1$new_log) 
+
+# Anova test after removing outliers
+new_log1 <- new_log[-c(44)]
+new_state1 <- new_state[-c(44)]
+AOV_model_2 <- aov(new_log1 ~ as.factor(new_state1))
+summary(AOV_model_2)
+```
+
+\text{ANALYSIS: }We did a log transformation and performed an anova test and got a p-value of 0.113 which is again greater than 0.05. We then looked at the box plots and removed the outliers from the logged traffic fatalities data and checked for any remaining outliers, we ended up removing another outlier and we ran the anova test again and got a p-value of 0.0649 which is still greater than 0.05. From both the tests we can come to the conclusion that since all the p-values are greater than 5% of significance level, then we fail to reject our null hypothesis so that there is no statistically significant difference in mean traffic fatalities with respect to the five US region groups.
+
+The p-value for the anova test after we removed the outlier is not statistically significant for a 5% significance level, but it is statistically significant for a 10% significance level, so for a post-hoc test, we've decided to run the Tukey test at the 10% significance level. We are using a Tukey test because it allows us to compare all possible combinations of any 2 US regions against each other, since we are comparing all pairs, we will not be using the Dunnett test because that one makes comparison with a reference group which we don't have, we will also not be using the Bonferroni test because it is best used when we have a small set of planned comparison but in this case we are comparing all the possible sets. We will not be using the Scheffe method because it compares more than two means at once however we only need to compare two means. We will also not be using the Fisher's LSD because it doesn't control the family-wise error rate and it is less conservative than the Tukey test (Lee & Lee, 2018).
+
+```{r}
+# Post-Hoc test
+TukeyHSD(AOV_model_2, conf.level = 0.90)
+```
+
+
+From the Tukey test, we can see that the only p-value that is less than the 10% significance level is from group 5-1, which is the difference in means of the West and Southeast region. \textbf{Looking at the differences, we can see that the difference between the groups 5 and 1 is approximately 1.0266520, since this is a positive number, we can conclude that the mean traffic fatality number for Southeast is greater than the mean traffic fatality for West by 1.0266520.} Looking at the confidence interval, the only interval that doesn't include 0 is also the 5-1 group and it's positive. So we can say that there is a statistically significant difference in means between the US regions Southeast and West at a 10% level of significance where the mean for Southeast is greater than the mean for West.
+
+Looking at the other p-values, Midwest-west has a p-value of 0.57.  Northeast-West has a p-value of 0.99. Southwest-West has a p-value of 0.67. Northeast-Midwest has a p-value of 0.81. Southwest-Midwest has a p-value of 0.997. Southeast-Midwest has a p-value of 0.61. Southwest-Northeast has a p-value of 0.83. Southeast-Northeast has a p-value of 0.12. Southeast-Southwest has a p-value of 0.97. All these p-values are greater than 0.1 so there is no statistically significant difference between the means of these groups.
+
+### Question 2:
+
+\textbf{INITIAL MULTIPLE LINEAR REGRESSION ASSUMPTIONS: }  
+
+\textbf{Normality of Dependent Variable: }We tried a series of transformations (logarithmic, squareroot and box-cox) and were unable to achieve a p-value below 0.05 on a Shapiro test. However the logarithmic transformation did significantly improve the qqnorm plot of fatalities, as well as reduce outliers, so we used it as the dependent of our model and will assume normality going forward. 
+
+```{r Testing Transformations}
+#Removing missing data and attempting transformations:
+fatals_clean <- na.omit(fatals)
+
+shapiro.test(fatals_clean$fatal)
+shapiro.test(log(fatals_clean$fatal))
+shapiro.test(sqrt(fatals_clean$fatal))
+shapiro.test(1/fatals_clean$fatal)
+
+```
+
+```{r box-cox creation, fig.show='hide'}
+bc1 <- boxcox(fatals_clean$fatal ~ factor(fatals_clean$year) + fatals_clean$spirits + fatals_clean$unemp + fatals_clean$income + fatals_clean$emppop + fatals_clean$beertax + fatals_clean$baptist + fatals_clean$mormon + fatals_clean$drinkage + fatals_clean$dry + fatals_clean$youngdrivers + fatals_clean$miles + factor(fatals_clean$breath) + factor(fatals_clean$jail) + factor(fatals_clean$service) + fatals_clean$pop + fatals_clean$milestot)
+```
+
+
+```{r box-cox test}
+
+lamda1 <- bc1$x[which.max(bc1$y)]
+
+shapiro.test(((fatals_clean$fatal^lamda1) - 1)/lamda1)
+
+```
+
+```{r log normality plots}
+
+par(mfrow=c(1, 2))
+
+qqnorm(fatals$fatal, main="Normality of Fatalities")
+qqline(fatals$fatal, lw=3, col="skyblue")
+
+qqnorm(log(fatals$fatal), main="Normality of Log Fatalities")
+qqline(log(fatals$fatal), lw=3, col="skyblue")
+```
+
+\textbf{Linear Relationship of Variables: }Based on the EDA above the data does not show very clear linearity between the variables but they do not appear randomly scattered either, however we will assume linearity while building our model.
+
+\textbf{No significant outliers: }Taking the log of the dependent variable serves the dual purpose of improving normality and reducing the number of outliers present to 0.
+
+```{r Boxplots of fatal vs log(fatal)}
+p12 <- ggplot(fatals, aes(y = fatal)) +
+  labs(y = "Fatalities") +
+  geom_boxplot(fill = "steelblue") +
+  theme_minimal()
+p13 <- ggplot(fatals, aes(y = log(fatal))) +
+  labs(y = "Log of Fatalities") +
+  geom_boxplot(fill = "steelblue") +
+  theme_minimal()
+
+p12 + 
+p13 +  
+  plot_annotation(title = "Effect of Log Transformation")
+```
+
+With our initial assumptions made we can move on to building and refining a model. Our first model will contain almost all of the available independent variables.
+
+\textbf{CHOICE OF MODEL SELECTION CRITERION: }According to a paper from Behavioral Ecology and Sociobiology titled "A brief guide to model selection, multimodel inference and model averaging in behavioural ecology using Akaike’s information criterion" AIC is better suited than other model comparison metrics for cases "where no one model is strongly supported"(1), which as will be seen applies very easily to our model selection process, as the differences between the different models created are quite minor. 
+
+```{r Building first model}
+#Building the first model with all independent variables.
+mlrmodel1 <- lm(log(fatals_clean$fatal) ~ factor(fatals_clean$year) + fatals_clean$spirits + 
+               fatals_clean$unemp + fatals_clean$income + fatals_clean$emppop + fatals_clean$beertax + 
+               fatals_clean$baptist + fatals_clean$mormon + fatals_clean$drinkage + fatals_clean$dry + 
+               fatals_clean$youngdrivers + fatals_clean$miles + factor(fatals_clean$breath) + 
+               factor(fatals_clean$jail) + factor(fatals_clean$service) + fatals_clean$pop + 
+               fatals_clean$milestot)
+summary(mlrmodel1)
+```
+We can begin refining our base model by using a backwards step function to create a second model:
+
+```{r Step Backwards}
+ols_step_backward_p(mlrmodel1)
+```
+
+Removing the five variables recommended by the function gives the following model:
+
+```{r Second Model}
+mlrmodel2 <- update(mlrmodel1, .~. -fatals_clean$dry -factor(fatals_clean$year) -fatals_clean$drinkage -fatals_clean$miles -fatals_clean$youngdrivers)
+
+summary(mlrmodel2)
+compareLM(mlrmodel1, mlrmodel2)
+```
+
+We can see that the backwards step did significantly improve the model based on AIC. We will now remove some of the less significant independent variables to see if we can create a simpler model that still performs well:
+
+```{r Third Model}
+mlrmodel3 <- update(mlrmodel2, .~. -fatals_clean$mormon -factor(fatals_clean$breath) -factor(fatals_clean$jail))
+summary(mlrmodel3)
+compareLM(mlrmodel1, mlrmodel2, mlrmodel3)
+```
+
+The third model has three less variables and has slightly lower AIC than the other two models so we will use it going forward.
+
+\textbf{MULTIPLE LINEAR REGRESSION FINAL ASSUMPTIONS: }
+
+\textbf{EDIT: The multicollinearity section has been moved to the end of the model creation process. Some variables are still removed during this step to fix the multicollinearity, as is done in the Multiple Linear Regression notes on our canvas page.}
+
+\textbf{Multicollinearity: }We will begin checking multicollinearity by computing the VIF of the variables in our model:
+
+```{r Multicollinearity Part 1}
+vif(mlrmodel3)
+```
+
+We can see that population and total miles both have very high VIF's because they are correlated, total miles is less significant so we will remove it from the model rather than population.
+
+```{r Multicollinearity Part 2}
+mlrmodel4 <- update(mlrmodel3, .~. -fatals_clean$milestot)
+```
+All of our VIF's are now below 5, to finish checking multicollinearity we will compute the correlation matrix of the numerical variables and remove any that are highly correlated (above 0.8).
+
+```{r Checking and Fixing Multicollinearity Part 3}
+#Creating a version of fatals containing only the numeric variables we are using
+fatals_numeric_only <- fatals_clean[, -c(1:3, 15:17, 19:27, 29:31, 32:35)]
+
+#Generating the correlation matrix of the numeric values
+cor(fatals_numeric_only)
+
+```
+The only numerical values that appear highly correlated are employment population and unemployment percentage, this is expected and we can remove employment population as it is less significant in our models than unemployment percentage:
+
+```{r Multicollinearity Part 3}
+mlrmodel5 <- update(mlrmodel4, .~. -fatals_clean$emppop)
+summary(mlrmodel5)
+```
+
+
+\textbf{Autocorrelation: } We will employ a Durbin-Watson test to check for autocorrelation:
+
+```{r Checking autocorrelation}
+dwtest(mlrmodel5)
+```
+The test was significant so the model does not fit the no or little autocorrelation assumption.
+
+\textbf{Residuals: }We will check residual assumptions by plotting our chosen model:
+```{r Checking Residuals}
+par(mfrow=c(2, 2))
+plot(mlrmodel5)
+```
+
+The residual graphs show that the residuals are relatively normally distributed and that there aren't any extreme values. However, they also show that there is low linearity between the independent and dependent variables and that that the variances are relatively unequal. Overall the residual assumptions do not fully hold. 
+
+\textbf{MULTIPLE LINEAR REGRESSION INTERPRETATIONS: }  
+Due to the nature of the independent variables involved, the intercept of the model is of no pragmatic interest however the slopes of the model are. All of the slopes of model the are statistically significant at a 5% level of significance. The slopes of the model are all very small, meaning no one factor has a very large amount of predictive capability on its own. Unemployment, Income, Beertax, Percent of Southern Baptist, Mandatory Community Service, and Population are all predicted to be positively correlated with traffic fatalities according to our model, in fact the only factor that is negatively correlated is the amount of Spirit Consumption. The majority of these associations might be surprising to the average person, the only ones we hypothesized would be positively correlated from the start were Population and Unemployment.  
+
+\textbf{MULTIPLE LINEAR REGRESSION PREDICTIONS: }
+
+Next we use the model to make predictions of fatalities based on the observations of the independent variables in the dataset and compare them to the observed fatalities:
+```{r Prediction Accuracy, warning=FALSE}
+plot_data <- data.frame(predicted_value = predict(mlrmodel5),  
+  observed_value = log(fatals_clean$fatal))
+
+ggplot(plot_data, aes(x = predicted_value, y = observed_value)) +
+  geom_point() +
+  labs(title="Predicted Vs. Observed Data", x="Predicted Value", y="Observed Value") +
+  geom_abline(intercept = 0, slope = 1, color = "purple", lwd=1.5) +
+  theme_minimal()
+
+
+```
+We see that the model does a relatively good job of predicting the data within the dataset despite several of our assumptions for multiple linear regression not holding.
+
+### Question 3:
+
+\textbf{CHI-SQUARED AND DIFFERENCE IN PROPORTIONS ASSUMPTIONS: }
+
+\textbf{EDITS: The chi-square test that was on its own before has been removed}
+
+Chi-Square and Difference in Proportions tests both require two categorical variables that should be measured at an ordinal or nominal level. The two variables should consist of two or more categorical, independent groups. Our independent categorical variable corresponds to mandatory jail sentence laws and mandatory community service sentence laws. Both the variables are nominal that take on yes or no values. Our sample size is 335 observations and the expected frequencies for each cell is above 5 so it meets the assumptions for the chi-square section of the test. 
+
+$H_o:$ There is no statistically significant correlation between mandatory jail sentence laws and mandatory community service sentence laws. 
+
+$H_A:$ There is a statistically significant correlation between mandatory jail sentence laws and mandatory community service sentence laws. 
+
+```{r Difference in Proportion Test}
+tb2 <- table(fatals_clean$jail, fatals_clean$service)
+prop.test(tb2, correct=FALSE, conf.level=0.95)
+```
+Because the p-value of the chi-square was well below our 5% level of significance, we can say that there is a statistically significant relationship between mandatory jail sentencing and mandatory community service sentencing.
+
+According to the results of the difference in proportion: out of all of the states that do not have mandatory jail sentences ~94% also do not have mandatory community service, and out of all states that do have mandatory jail sentences ~49% do not have mandatory community service. So based on this data it appears that in a given state in a given year, it is very likely that if there is not mandatory jail sentences there are also not mandatory community service sentences, however if there are mandatory jail sentences there is only a slightly above 50% chance that there will also be mandatory community service sentences.
+
+## Section 4:
+\textbf{SUMMARY OF RESULTS: } 
+Our ANOVA model did not show a statistically significant difference in mean fatalities between US regions at our originally stated 5% significance level. After the data had been cleaned however, it did show a difference at a 10% level of significance, so we ran a Tukey post-hoc test at that 10% level of significance. The post-hoc test revealed that the only statistically significant difference in mean traffic fatalities was between the West and Southeast regions of the US, where Southeast had a greater mean. This result is also consistent with what can be seen visually in the boxplots and barplots of our EDA. Our multiple linear regression model appears to predict the values within our dataset relatively well and has slope values that are very interesting from cultural and political perspectives. However, it fails to fulfill several major assumptions such as normality of dependent variable, low autocorrelation, and equal variances, so it would be very risky to use the model to make real world predictions and any interpretations gained from the formula of the model are suspect. Our chi-square test indicated a statistically significant correlation between mandatory jail sentences and mandatory community service sentences, and after performing a post-hoc difference in proportion test we learned that a lack of mandatory jail sentences and a lack mandatory community service sentences are very highly correlated, and that the prescence of mandatory jail sentences and the prescence of mandatory community service sentences are only slightly correlated.
+
+
+\textbf{FINDINGS RELATIVE TO EXISTING LITERATURE: }
+The findings of the paper our dataset has been derived from and the findings from our analysis are somewhat consistent. The paper concluded that the impact from beer tax and “administrative per se laws”, mandatory jail and mandatory community service, have a positive correlation with vehicle fatalities. In the paper, legal drinking ages were found to be strongly negatively related to the fatalities of 18 to 20 year olds. This was different from our findings as our analysis concluded that legal drinking age was statistically insignificant. Additionally, some of the variables compared in the paper and in our analysis were different. In the paper, the dram shop laws and Mothers Against Drunk Driving were compared as well. Dram shop laws were found to have a statistically significant negative impact on traffic mortality. In our analysis, we found that Percent of Southern Baptists and Population were positively correlated with traffic fatalities. 
+
+The paper from National Center for Statistics and Analysis on alcohol-impaired driving talks about motor vehicle crashes that involve an alcohol-impaired driver. This is relevant to our paper as some of the variables that are statistically significant are alcohol related like Beertax. This shows that alcohol and fatalities are positively correlated. The paper concludes that about 30 percent of all traffic fatalities are caused because of drunk driving. It also found that young drivers and night time accidents are positively correlated with fatal crashes. In our paper, we didn’t include night fatalities (nfatal) in our model because fatalities and night fatalities are correlated. 
+
+
+\textbf{SUGGESTIONS FOR FUTURE RESEARCH: }
+The majority of our uncertainty in regards to this project is from the multiple linear regression model. Having a larger number of observations with more independent variables would allow more precise analysis of the problems we are interested in. It would also allow us to narrow the range of data we examine at once which might lead to more normal and/or more consistent data distributions. Our dependent variable for the first two questions was not normally distributed in its unaltered state which is likely to have been the cause of many of our issues. A statistical test more suited to the natural distribution of the data may give more reliable results.
+
+A paper from the journal Accident Analysis & Prevention titles “Traffic fatalities and economic growth” addresses two of these concerns by having a much larger dataset and narrowing their tests, and as a result found that income was a negatively correlated to traffic fatalities after a certain point, which is opposite of what we found. This is because “Traffic fatalities and economic growth” compared multiple countries including low-income (developing) countries whereas in our paper, we compare only the data from the United States.
+
+\textbf{WORKS CITED: }  
+Lee, S., & Lee, D. K. (2018). What is the proper way to apply the multiple comparison test?. Korean journal of anesthesiology, 71(5), 353–360. https://doi.org/10.4097/kja.d.18.00242
+
+Ruhm, C. J. (1996). Alcohol policies and highway vehicle fatalities. Journal of Health Economics, 15(4), 435–454. https://doi.org/10.1016/s0167-6296(96)00490-0
+
+Symonds, M. R. E., &amp; Moussalli, A. (2010, August 25). A brief guide to model selection, Multimodel inference and model averaging in behavioural ecology using Akaike's information criterion - behavioral ecology and sociobiology. SpringerLink. Retrieved November 14, 2022, from https://link.springer.com/article/10.1007/s00265-010-1037-6
+
+Kopits, E., & Cropper, M. (January 2005). Traffic Fatalities and Economic Growth. Accident Analysis & Prevention. Retrieved November 15, 2022 from https://www.sciencedirect.com/science/article/pii/S0001457504000685
+
+Traffic Safety Facts. National Center for Statistics and Analysis. (2022, April). Retrieved November 15, 2022, from https://crashstats.nhtsa.dot.gov/Api/Public/ViewPublication/813294 
